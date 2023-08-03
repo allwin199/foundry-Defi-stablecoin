@@ -5,6 +5,7 @@
     2. Set a function to exchange ETH & BTC for whatever their dollar equivalent is
 2. Stability Mechanism (Minting): Algorathmic(Decentralized)
     1. People can only mint the stablecoin with enough collateral
+    2.
 3. Collaternal: Exogenous (Crypto)
-    1. ETH
-    2. BTC
+    1. wETH
+    2. wBTC
