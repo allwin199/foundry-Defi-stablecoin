@@ -10,7 +10,7 @@ contract DeployDSC is Script {
     address[] public tokenAddresses;
     address[] public priceFeedAddresses;
 
-    function run() external returns (DecentralizedStableCoin, DSCEngine) {
+    function run() external returns (DecentralizedStableCoin, DSCEngine, HelperConfig) {
         HelperConfig helperConfig = new HelperConfig();
         (
             address weth,
@@ -31,6 +31,6 @@ contract DeployDSC is Script {
 
         /// @dev since Decentralized stable coin has ownable fn, it should be owned by our engine.
 
-        return (dsc, engine);
+        return (dsc, engine, helperConfig);
     }
 }
