@@ -4,6 +4,7 @@ pragma solidity ^0.8.18;
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import {DecentralizedStableCoin} from "./DecentralizedStableCoin.sol";
+import {AggregatorV3Interface} from "@chainlink/contracts/src/v0.8/interfaces/AggregatorV3Interface.sol";
 
 /// @title DSCEngine
 /// @author Prince Allwin
@@ -25,8 +26,16 @@ contract DSCEngine is ReentrancyGuard {
     /*/////////////////////////////////////////////////////////////////////////////
                                 STATE VARIABLES
     /////////////////////////////////////////////////////////////////////////////*/
+    uint256 private constant ADDITIONAL_FEED_PRECISION = 1e10;
+    uint256 private constant PRECISION = 1e10;
+    uint256 private constant LIQUIDATION_THRESHOLD = 50; // which means user should be 200% over-collateralized
+    uint256 private constant LIQUIDATION_PRECISION = 100;
+    uint256 private constant MIN_HEALTH_FACTOR = 1;
+
     mapping(address token => address priceFeed) private s_priceFeeds;
     mapping(address user => mapping(address token => uint256 collateralAmount)) private s_collateralDeposited;
+    mapping(address user => uint256 amountDscMinted) private s_dscMinted;
+    address[] private s_collateralTokens;
 
     // Immutables
     DecentralizedStableCoin private immutable i_dsc;
@@ -43,6 +52,8 @@ contract DSCEngine is ReentrancyGuard {
     error DSCEngine__TokenAddressesAndPriceFeedAddresses_MustBeSameLength();
     error DSCEngine__TokenNotAllowed();
     error DSCEngine__Collateral_TransferFailed();
+    error DSCEngine__BreaksHealthFactor(uint256 healthFactor);
+    error DSCEngine__MintFailed();
 
     /*/////////////////////////////////////////////////////////////////////////////
                                 MODIFIERS
@@ -74,6 +85,7 @@ contract DSCEngine is ReentrancyGuard {
         }
         for (uint256 index = 0; index < tokenAddresses.length; index++) {
             s_priceFeeds[tokenAddresses[index]] = priceFeedAddresses[index];
+            s_collateralTokens.push(tokenAddresses[index]);
         }
         i_dsc = DecentralizedStableCoin(dscAddress);
     }
@@ -87,7 +99,7 @@ contract DSCEngine is ReentrancyGuard {
     /// @dev follows CHECKS, EFFECTS, INTERACTIONS (CEI)
     /// @dev we should let the user pick what collateral they want to deposit
     /// eg: wETH or wBTC
-    /// @param tokenCollateralAddress The address of the token to seposit as collateral, this will be either wETH or wBTC
+    /// @param tokenCollateralAddress The address of the token to deposit as collateral, this will be either wETH or wBTC
     /// @param amountCollateral amount of collateral to deposit
     /// @dev we should keep track of the users collateral balance based on the token
     /// @dev since we are updating the state, we have to emit an event.
@@ -110,7 +122,22 @@ contract DSCEngine is ReentrancyGuard {
 
     function redeemCollateral() external {}
 
-    function mintDsc() external {}
+    /// @dev follows CHECKS, EFFECTS, INTERACTIONS (CEI)
+    /// @param amountDscToMint the amount of DSC to be minted
+    /// @notice user must have more collateral value than the minimum threshold
+    /// @dev Before allowing a user to mint
+    /// 1. Check if the collateral value > DSC amount
+    function mintDsc(uint256 amountDscToMint) external moreThanZero(amountDscToMint) nonReentrant {
+        s_dscMinted[msg.sender] = s_dscMinted[msg.sender] + amountDscToMint;
+        // if they minted too much, we should revert
+        // If they want to mint $150 worth of DSC but they have only $100 worth of ETH
+        // they shouldn't be allowed to mint.
+        _revertIfHealthFactorIsBroken(msg.sender);
+        bool minted = i_dsc.mint(msg.sender, amountDscToMint);
+        if (!minted) {
+            revert DSCEngine__MintFailed();
+        }
+    }
 
     /// @dev If the collateral value goes down, then the user will be undercollateralized.
     /// The user can burn some DSC and get their collateral value higher.
@@ -150,4 +177,82 @@ contract DSCEngine is ReentrancyGuard {
     /// Now this user is under collateralized
 
     function getHealthFactor() external view {}
+
+    /*/////////////////////////////////////////////////////////////////////////////
+                        PRIVATE & INTERNAL VIEW FUNCTIONS
+    /////////////////////////////////////////////////////////////////////////////*/
+
+    function _getAccountInformation(address user)
+        private
+        view
+        returns (uint256 totalDSCMinted, uint256 collateralValueInUsd)
+    {
+        totalDSCMinted = s_dscMinted[user];
+        collateralValueInUsd = getAccountCollateralValue(user);
+    }
+
+    /// @dev Returns how close to liquidation a user is
+    /// If a user goes below 1, then they can be liquidated
+    function _healthFactor(address user) private view returns (uint256) {
+        // To determine the health factor
+        // 1. Get total DSC minted by this user
+        // 2. Total VALUE of the collateral deposited
+        // 3. Make sure Collateral Value > DSC minted
+        (uint256 totalDSCMinted, uint256 collateralValueInUsd) = _getAccountInformation(user);
+        uint256 collateralAdjustedForThreshold = (collateralValueInUsd * LIQUIDATION_THRESHOLD) / LIQUIDATION_PRECISION;
+
+        return ((collateralAdjustedForThreshold * PRECISION) / totalDSCMinted);
+
+        // if collateralValueInUsd = $1000 ETH and totalDSCMinted = $100 of DSC
+        // LIQUIDATION_THRESHOLD = 50
+        // (collateralValueInUsd * LIQUIDATION_THRESHOLD) = 1000 * 50 = 50000
+        // collateralAdjustedForThreshold = (collateralValueInUsd * LIQUIDATION_THRESHOLD) / LIQUIDATION_PRECISION
+        // collateralAdjustedForThreshold = (1000 * 50) / 100 = 500
+        // return ((collateralAdjustedForThreshold * PRECISION) / totalDSCMinted);
+        // collateralAdjustedForThreshold = 500
+        // PRECISION = 1e10;
+        // (collateralAdjustedForThreshold * PRECISION) = 500e10;
+        // (collateralAdjustedForThreshold * PRECISION) / totalDSCMinted) = 500 / 100
+        // this is > 1
+        // If healthFactor < 1, user will get liquidated
+    }
+
+    // 1. Check health factor (do they have enough collateral)
+    // 2. Revert If they don't have a good health factor
+    function _revertIfHealthFactorIsBroken(address user) internal view {
+        uint256 userHealthFactor = _healthFactor(user);
+        if (userHealthFactor < MIN_HEALTH_FACTOR) {
+            revert DSCEngine__BreaksHealthFactor(userHealthFactor);
+        }
+    }
+
+    /*/////////////////////////////////////////////////////////////////////////////
+                        PUBLIC & EXTERNAL VIEW FUNCTIONS
+    /////////////////////////////////////////////////////////////////////////////*/
+    /// If a user has wETH with a value of 2wEth
+    /// then we need to get the USD value for that.
+    function getAccountCollateralValue(address user) public view returns (uint256) {
+        // To get the amountCollateralValue
+        // loop through each collateral token, get the amount of collateral they deposited
+        // map it to the price and get the USD value
+        uint256 totalCollateralValueInUsd = 0;
+        for (uint256 index = 0; index < s_collateralTokens.length; index++) {
+            address token = s_collateralTokens[index];
+            uint256 amount = s_collateralDeposited[user][token];
+            totalCollateralValueInUsd = totalCollateralValueInUsd + getUsdValue(token, amount);
+        }
+        return totalCollateralValueInUsd;
+    }
+
+    ///@dev we are getting the usdValue for wETH & wBTC
+    /// @param token this token will describe whether it is wETH or wBTC or ...
+    /// @param amount the amount the user already have in these tokens
+    /// since we have the token address, we need to get the respective priceFeed address
+    /// s_priceFeeds[] will hold all the addresses for priceFeeds, we can get the required pricFeed address
+    function getUsdValue(address token, uint256 amount) public view returns (uint256) {
+        AggregatorV3Interface priceFeed = AggregatorV3Interface(s_priceFeeds[token]);
+        (, int256 price,,,) = priceFeed.latestRoundData();
+        uint256 valueInUsd = (amount * (uint256(price) * PRECISION)) / 1e18;
+        return valueInUsd;
+    }
 }
