@@ -20,12 +20,12 @@ contract DecentralizedStableCoin is ERC20Burnable, Ownable {
     error DecentralizedStableCoin__MintAmount_MustBeMoreThanZero();
 
     /*/////////////////////////////////////////////////////////////////////////////
-                                CONSTRUCTOR
+                                Functions
     /////////////////////////////////////////////////////////////////////////////*/
     constructor() ERC20("DecentralizedStableCoin", "DSC") {}
 
     /*/////////////////////////////////////////////////////////////////////////////
-                                Functions
+                            EXTERNAL & public FUNCTIONS
     /////////////////////////////////////////////////////////////////////////////*/
 
     /// @param amount totalAmount to be burn

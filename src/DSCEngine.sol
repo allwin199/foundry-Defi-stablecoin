@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.18;
 
+import {DecentralizedStableCoin} from "./DecentralizedStableCoin.sol";
+
 /// @title DSCEngine
 /// @author Prince Allwin
 /// @notice The system is designed to be as minimal as possible, and have the tokens maintain a 1 token == $1 peg.
@@ -18,9 +20,65 @@ pragma solidity ^0.8.18;
 /// @notice This contract is very loosely based on the MakerDAO DSS (DAI) system.
 
 contract DSCEngine {
+    /*/////////////////////////////////////////////////////////////////////////////
+                                STATE VARIABLES
+    /////////////////////////////////////////////////////////////////////////////*/
+    mapping(address token => address priceFeed) private s_priceFeeds;
+
+    // Immutables
+    DecentralizedStableCoin private immutable i_dsc;
+
+    /*/////////////////////////////////////////////////////////////////////////////
+                                CUSTOM ERRORS
+    /////////////////////////////////////////////////////////////////////////////*/
+    error DSCEngine__Amount_MustBeMoreThanZero();
+    error DSCEngine__TokenAddressesAndPriceFeedAddresses_MustBeSameLength();
+
+    /*/////////////////////////////////////////////////////////////////////////////
+                                MODIFIERS
+    /////////////////////////////////////////////////////////////////////////////*/
+    modifier moreThanZero(uint256 amount) {
+        if (amount <= 0) {
+            revert DSCEngine__Amount_MustBeMoreThanZero();
+        }
+        _;
+    }
+
+    modifier isAllowedToken(address tokenCollateralAddress) {
+        _;
+    }
+
+    /*/////////////////////////////////////////////////////////////////////////////
+                                    FUNCTIONS
+    /////////////////////////////////////////////////////////////////////////////*/
+
+    /// @param tokenAddresses 2 tokenAddresses will be provided (wETH & wBTC)
+    /// @param priceFeedAddresses for thoes 2 tokenAddresses, we need to find the correspoing priceFeed.
+    /// @param dscAddress Since DecentralizedStableCoin contains info about `burn` and `mint` we need that deployed contract here.
+    constructor(address[] memory tokenAddresses, address[] memory priceFeedAddresses, address dscAddress) {
+        if (tokenAddresses.length != priceFeedAddresses.length) {
+            revert DSCEngine__TokenAddressesAndPriceFeedAddresses_MustBeSameLength();
+        }
+        for (uint256 index = 0; index < tokenAddresses.length; index++) {
+            s_priceFeeds[tokenAddresses[index]] = priceFeedAddresses[index];
+        }
+        i_dsc = DecentralizedStableCoin(dscAddress);
+    }
+
+    /*/////////////////////////////////////////////////////////////////////////////
+                                EXTERNAL FUNCTIONS
+    /////////////////////////////////////////////////////////////////////////////*/
+
     function depositCollateralAndMintDSC() external {}
 
-    function depositCollateral() external {}
+    /// @dev we should let the user pick what collateral they want to deposit
+    /// eg: wETH or wBTC
+    /// @param tokenCollateralAddress The address of the token to seposit as collateral, this will be either wETH or wBTC
+    /// @param amountCollateral amount of collateral to deposit
+    function depositCollateral(address tokenCollateralAddress, uint256 amountCollateral)
+        external
+        moreThanZero(amountCollateral)
+    {}
 
     function redeemCollateralForDSC() external {}
 
