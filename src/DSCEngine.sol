@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.18;
 
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {ReentrancyGuard} from "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import {DecentralizedStableCoin} from "./DecentralizedStableCoin.sol";
 
 /// @title DSCEngine
@@ -19,20 +21,28 @@ import {DecentralizedStableCoin} from "./DecentralizedStableCoin.sol";
 /// @notice This contract is the core of the DSC System. It handles all the logic for mining and redeeming DSC, as well as depositing and withdrawing collateral.
 /// @notice This contract is very loosely based on the MakerDAO DSS (DAI) system.
 
-contract DSCEngine {
+contract DSCEngine is ReentrancyGuard {
     /*/////////////////////////////////////////////////////////////////////////////
                                 STATE VARIABLES
     /////////////////////////////////////////////////////////////////////////////*/
     mapping(address token => address priceFeed) private s_priceFeeds;
+    mapping(address user => mapping(address token => uint256 collateralAmount)) private s_collateralDeposited;
 
     // Immutables
     DecentralizedStableCoin private immutable i_dsc;
+
+    /*/////////////////////////////////////////////////////////////////////////////
+                                    EVENTS
+    /////////////////////////////////////////////////////////////////////////////*/
+    event CollateralDeposited(address indexed user, address indexed tokenCollateralAddress, uint256 indexed amount);
 
     /*/////////////////////////////////////////////////////////////////////////////
                                 CUSTOM ERRORS
     /////////////////////////////////////////////////////////////////////////////*/
     error DSCEngine__Amount_MustBeMoreThanZero();
     error DSCEngine__TokenAddressesAndPriceFeedAddresses_MustBeSameLength();
+    error DSCEngine__TokenNotAllowed();
+    error DSCEngine__Collateral_TransferFailed();
 
     /*/////////////////////////////////////////////////////////////////////////////
                                 MODIFIERS
@@ -44,7 +54,10 @@ contract DSCEngine {
         _;
     }
 
-    modifier isAllowedToken(address tokenCollateralAddress) {
+    modifier isTokenAllowed(address tokenCollateralAddress) {
+        if (s_priceFeeds[tokenCollateralAddress] == address(0)) {
+            revert DSCEngine__TokenNotAllowed();
+        }
         _;
     }
 
@@ -71,14 +84,27 @@ contract DSCEngine {
 
     function depositCollateralAndMintDSC() external {}
 
+    /// @dev follows CHECKS, EFFECTS, INTERACTIONS (CEI)
     /// @dev we should let the user pick what collateral they want to deposit
     /// eg: wETH or wBTC
     /// @param tokenCollateralAddress The address of the token to seposit as collateral, this will be either wETH or wBTC
     /// @param amountCollateral amount of collateral to deposit
+    /// @dev we should keep track of the users collateral balance based on the token
+    /// @dev since we are updating the state, we have to emit an event.
     function depositCollateral(address tokenCollateralAddress, uint256 amountCollateral)
         external
         moreThanZero(amountCollateral)
-    {}
+        isTokenAllowed(tokenCollateralAddress)
+        nonReentrant
+    {
+        s_collateralDeposited[msg.sender][tokenCollateralAddress] =
+            s_collateralDeposited[msg.sender][tokenCollateralAddress] + amountCollateral;
+        emit CollateralDeposited(msg.sender, tokenCollateralAddress, amountCollateral);
+        bool success = IERC20(tokenCollateralAddress).transferFrom(msg.sender, address(this), amountCollateral);
+        if (!success) {
+            revert DSCEngine__Collateral_TransferFailed();
+        }
+    }
 
     function redeemCollateralForDSC() external {}
 
