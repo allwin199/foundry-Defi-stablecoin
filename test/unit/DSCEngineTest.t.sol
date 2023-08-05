@@ -222,19 +222,18 @@ contract DSCEngineTest is Test {
         dSCEngine.burnDSC(10000e18);
     }
 
-    // This function is failing
-    // function test_UserCanBurnDSC() public despositedCollateral mintedDSC {
-    //     vm.startPrank(USER);
+    function test_UserCanBurnDSC() public despositedCollateral mintedDSC {
+        vm.startPrank(USER);
 
-    //     dsc.approve(address(dSCEngine), AMOUNT_DSC_To_Mint);
+        dsc.approve(address(dSCEngine), AMOUNT_DSC_To_Mint);
 
-    //     dSCEngine.burnDSC(1e18);
-    //     vm.stopPrank();
+        dSCEngine.burnDSC(1e18);
+        vm.stopPrank();
 
-    //     uint256 expectedDSCMinted = dSCEngine.getDscMintedByUser(USER);
+        uint256 expectedDSCMinted = dSCEngine.getDscMintedByUser(USER);
 
-    //     assertEq(expectedDSCMinted, 0);
-    // }
+        assertEq(expectedDSCMinted, 0);
+    }
 
     /*/////////////////////////////////////////////////////////////////////////////
                                 REDEEM COLLATERAL TESTS
@@ -256,14 +255,14 @@ contract DSCEngineTest is Test {
         dSCEngine.redeemCollateral(address(ran), AMOUNT_COLLATERAL);
     }
 
-    // function test_UserCanRedeemCollateral_UpdatesDS() public despositedCollateral {
-    //     vm.startPrank(USER);
-    //     dSCEngine.redeemCollateral(weth, AMOUNT_COLLATERAL);
+    function test_UserCanRedeemCollateral_UpdatesDS() public despositedCollateral {
+        vm.startPrank(USER);
+        dSCEngine.redeemCollateral(weth, AMOUNT_COLLATERAL);
 
-    //     uint256 expectedValue = dSCEngine.getTotalCollateralValueOfUser(USER, weth);
+        uint256 expectedValue = dSCEngine.getTotalCollateralValueOfUser(USER, weth);
 
-    //     assertEq(expectedValue, 0);
+        assertEq(expectedValue, 0);
 
-    //     vm.stopPrank();
-    // }
+        vm.stopPrank();
+    }
 }

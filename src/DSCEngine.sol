@@ -282,8 +282,6 @@ contract DSCEngine is ReentrancyGuard {
     /// By paying $50 worth of DSC, they got extra $49 worth of ETH.
     /// This is the punishment for the user, for letting the collateral too low
 
-    function getHealthFactor() public view {}
-
     /*/////////////////////////////////////////////////////////////////////////////
                         PRIVATE & INTERNAL VIEW FUNCTIONS
     /////////////////////////////////////////////////////////////////////////////*/
@@ -334,10 +332,9 @@ contract DSCEngine is ReentrancyGuard {
         // 1. Get total DSC minted by this user
         // 2. Total VALUE of the collateral deposited
         // 3. Make sure Collateral Value > DSC minted
-        (uint256 totalDSCMinted, uint256 collateralValueInUsd) = _getAccountInformation(user);
-        uint256 collateralAdjustedForThreshold = (collateralValueInUsd * LIQUIDATION_THRESHOLD) / LIQUIDATION_PRECISION;
 
-        return ((collateralAdjustedForThreshold * PRECISION) / totalDSCMinted);
+        (uint256 totalDSCMinted, uint256 collateralValueInUsd) = _getAccountInformation(user);
+        return _calculateHealthFactor(totalDSCMinted, collateralValueInUsd);
 
         // if collateralValueInUsd = $1000 ETH and totalDSCMinted = $100 of DSC
         // LIQUIDATION_THRESHOLD = 50
@@ -353,6 +350,16 @@ contract DSCEngine is ReentrancyGuard {
         // If healthFactor < 1, user will get liquidated
     }
 
+    function _calculateHealthFactor(uint256 totalDscMinted, uint256 collateralValueInUsd)
+        internal
+        pure
+        returns (uint256)
+    {
+        if (totalDscMinted == 0) return type(uint256).max;
+        uint256 collateralAdjustedForThreshold = (collateralValueInUsd * LIQUIDATION_THRESHOLD) / 100;
+        return (collateralAdjustedForThreshold * 1e18) / totalDscMinted;
+    }
+
     // 1. Check health factor (do they have enough collateral)
     // 2. Revert If they don't have a good health factor
     function _revertIfHealthFactorIsBroken(address user) internal view {
@@ -365,6 +372,14 @@ contract DSCEngine is ReentrancyGuard {
     /*/////////////////////////////////////////////////////////////////////////////
                         PUBLIC & EXTERNAL VIEW FUNCTIONS
     /////////////////////////////////////////////////////////////////////////////*/
+
+    function calculateHealthFactor(uint256 totalDscMinted, uint256 collateralValueInUsd)
+        external
+        pure
+        returns (uint256)
+    {
+        return _calculateHealthFactor(totalDscMinted, collateralValueInUsd);
+    }
 
     function getTokenAmountFromUsd(address token, uint256 usdAmountInWei) public view returns (uint256) {
         AggregatorV3Interface priceFeed = AggregatorV3Interface(s_priceFeeds[token]);
