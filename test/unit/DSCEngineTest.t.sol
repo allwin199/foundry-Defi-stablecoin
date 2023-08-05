@@ -156,14 +156,14 @@ contract DSCEngineTest is Test {
         vm.stopPrank();
     }
 
-    modifier MintedDSC() {
+    modifier mintedDSC() {
         vm.startPrank(USER);
         dSCEngine.mintDsc(AMOUNT_DSC_To_Mint);
         vm.stopPrank();
         _;
     }
 
-    function test_MintDSC_UpdatesDS() public despositedCollateral MintedDSC {
+    function test_MintDSC_UpdatesDS() public despositedCollateral mintedDSC {
         uint256 expectedDSCMinted = dSCEngine.getDscMintedByUser(USER);
 
         assertEq(expectedDSCMinted, AMOUNT_DSC_To_Mint);
@@ -177,5 +177,22 @@ contract DSCEngineTest is Test {
         dSCEngine.mintDsc(AMOUNT_DSC_To_Mint);
 
         vm.stopPrank();
+    }
+
+    /*/////////////////////////////////////////////////////////////////////////////
+                        DEPOSIT COLLATERAL AND MINTDSC TESTS
+    /////////////////////////////////////////////////////////////////////////////*/
+
+    function test_UserCanDepostCollateral_AndMintDSC() public {
+        vm.startPrank(USER);
+
+        ERC20Mock(weth).approve(address(dSCEngine), AMOUNT_COLLATERAL);
+        dSCEngine.depositCollateralAndMintDSC(weth, AMOUNT_COLLATERAL, AMOUNT_DSC_To_Mint);
+
+        uint256 expectedValue = dSCEngine.getTotalCollateralValueOfUser(USER, weth);
+        assertEq(AMOUNT_COLLATERAL, expectedValue);
+
+        uint256 expectedDSCMinted = dSCEngine.getDscMintedByUser(USER);
+        assertEq(expectedDSCMinted, AMOUNT_DSC_To_Mint);
     }
 }
