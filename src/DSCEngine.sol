@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.18;
 
+import {console2} from "forge-std/console2.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import {DecentralizedStableCoin} from "./DecentralizedStableCoin.sol";
@@ -292,6 +293,7 @@ contract DSCEngine is ReentrancyGuard {
                         PRIVATE & INTERNAL VIEW FUNCTIONS
     /////////////////////////////////////////////////////////////////////////////*/
 
+    /// @dev Low-level internal function, do not call unless the function calling is checking for health factors being broken
     function _burnDsc(uint256 amountDSCToBurn, address onBehalfOf, address /*dscFrom*/ ) private {
         if (amountDSCToBurn > s_dscMinted[onBehalfOf]) {
             revert DSCEngine__AmountToBurn_MoreThanMinted();
@@ -372,6 +374,7 @@ contract DSCEngine is ReentrancyGuard {
     function getTokenAmountFromUsd(address token, uint256 usdAmountInWei) public view returns (uint256) {
         AggregatorV3Interface priceFeed = AggregatorV3Interface(s_priceFeeds[token]);
         (, int256 price,,,) = priceFeed.latestRoundData();
+
         return (usdAmountInWei * PRECISION) / (uint256(price) * ADDITIONAL_FEED_PRECISION);
 
         // If usdAmountInWei = 10e18;
@@ -403,14 +406,26 @@ contract DSCEngine is ReentrancyGuard {
     function getUsdValue(address token, uint256 amount) public view returns (uint256) {
         AggregatorV3Interface priceFeed = AggregatorV3Interface(s_priceFeeds[token]);
         (, int256 price,,,) = priceFeed.latestRoundData();
-        uint256 valueInUsd = (amount * (uint256(price) * ADDITIONAL_FEED_PRECISION)) / 1e18;
+        uint256 valueInUsd = (amount * (uint256(price) * ADDITIONAL_FEED_PRECISION)) / PRECISION;
         return valueInUsd;
     }
 
     /*/////////////////////////////////////////////////////////////////////////////
                                     GETTER FUNCTIONS
     /////////////////////////////////////////////////////////////////////////////*/
-    function getTotalCollateralValueOfUser(address user, address token) public view returns (uint256) {
+    function getTotalCollateralValueOfUser(address user, address token) external view returns (uint256) {
         return s_collateralDeposited[user][token];
+    }
+
+    function getDscMintedByUser(address user) external view returns (uint256) {
+        return s_dscMinted[user];
+    }
+
+    function getAccountInformation(address user)
+        external
+        view
+        returns (uint256 totalDSCMinted, uint256 collateralValueInUsd)
+    {
+        (totalDSCMinted, collateralValueInUsd) = _getAccountInformation(user);
     }
 }
