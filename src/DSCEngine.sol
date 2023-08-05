@@ -159,6 +159,7 @@ contract DSCEngine is ReentrancyGuard {
     {
         burnDSC(amountDSCToBurn);
         redeemCollateral(tokenCollateralAddress, amountToRedeem);
+        _revertIfHealthFactorIsBroken(msg.sender);
         // redeem collateral already checks health factor
     }
 
@@ -175,7 +176,7 @@ contract DSCEngine is ReentrancyGuard {
         nonReentrant
     {
         _redeemCollateral(tokenCollateralAddress, amountToRedeem, msg.sender, msg.sender);
-        // _revertIfHealthFactorIsBroken(msg.sender); // un-comment this
+        _revertIfHealthFactorIsBroken(msg.sender);
     }
 
     /// @dev follows CHECKS, EFFECTS, INTERACTIONS (CEI)
