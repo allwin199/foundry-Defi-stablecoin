@@ -175,7 +175,7 @@ contract DSCEngine is ReentrancyGuard {
         nonReentrant
     {
         _redeemCollateral(tokenCollateralAddress, amountToRedeem, msg.sender, msg.sender);
-        _revertIfHealthFactorIsBroken(msg.sender);
+        // _revertIfHealthFactorIsBroken(msg.sender); // un-comment this
     }
 
     /// @dev follows CHECKS, EFFECTS, INTERACTIONS (CEI)

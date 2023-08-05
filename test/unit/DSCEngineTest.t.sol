@@ -195,4 +195,39 @@ contract DSCEngineTest is Test {
         uint256 expectedDSCMinted = dSCEngine.getDscMintedByUser(USER);
         assertEq(expectedDSCMinted, AMOUNT_DSC_To_Mint);
     }
+
+    /*/////////////////////////////////////////////////////////////////////////////
+                                REDEEM COLLATERAL TESTS
+    /////////////////////////////////////////////////////////////////////////////*/
+
+    function test_RevertsIf_RedeemCollateral_WithZero() public despositedCollateral {
+        vm.expectRevert(DSCEngine.DSCEngine__Amount_MustBeMoreThanZero.selector);
+        dSCEngine.redeemCollateral(weth, 0);
+    }
+
+    function test_RevertsIf_RedeemCollateral_WithMoreThanBalance() public despositedCollateral {
+        vm.expectRevert(DSCEngine.DSCEngine__RedeemCollateralAmount_IsMoreThanDeposited.selector);
+        dSCEngine.redeemCollateral(weth, 1000e18);
+    }
+
+    function test_RevertsIf_RedeemCollateral_WithWrongToken() public despositedCollateral {
+        ERC20Mock ran = new ERC20Mock();
+        vm.expectRevert(DSCEngine.DSCEngine__TokenNotAllowed.selector);
+        dSCEngine.redeemCollateral(address(ran), AMOUNT_COLLATERAL);
+    }
+
+    function test_UserCanRedeemCollateral_UpdatesDS() public despositedCollateral {
+        vm.startPrank(USER);
+        dSCEngine.redeemCollateral(weth, AMOUNT_COLLATERAL);
+
+        uint256 expectedValue = dSCEngine.getTotalCollateralValueOfUser(USER, weth);
+
+        assertEq(expectedValue, 0);
+
+        vm.stopPrank();
+    }
+
+    /*/////////////////////////////////////////////////////////////////////////////
+                                    BURNDSC TESTS
+    /////////////////////////////////////////////////////////////////////////////*/
 }
