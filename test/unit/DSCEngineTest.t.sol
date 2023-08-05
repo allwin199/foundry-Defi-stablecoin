@@ -257,11 +257,30 @@ contract DSCEngineTest is Test {
 
     function test_UserCanRedeemCollateral_UpdatesDS() public despositedCollateral {
         vm.startPrank(USER);
+
         dSCEngine.redeemCollateral(weth, AMOUNT_COLLATERAL);
 
         uint256 expectedValue = dSCEngine.getTotalCollateralValueOfUser(USER, weth);
 
         assertEq(expectedValue, 0);
+
+        vm.stopPrank();
+    }
+
+    /*/////////////////////////////////////////////////////////////////////////////
+                            REDEEM COLLATERAL & BURN DSC TESTS
+    /////////////////////////////////////////////////////////////////////////////*/
+    function test_UserCanRedeemCollateral_AndBurnDSC() public despositedCollateral mintedDSC {
+        vm.startPrank(USER);
+
+        dsc.approve(address(dSCEngine), AMOUNT_DSC_To_Mint);
+        dSCEngine.redeemCollateralForDSC(weth, AMOUNT_COLLATERAL, AMOUNT_DSC_To_Mint);
+
+        uint256 expectedValue = dSCEngine.getTotalCollateralValueOfUser(USER, weth);
+        assertEq(expectedValue, 0);
+
+        uint256 expectedDSCMinted = dSCEngine.getDscMintedByUser(USER);
+        assertEq(expectedDSCMinted, 0);
 
         vm.stopPrank();
     }

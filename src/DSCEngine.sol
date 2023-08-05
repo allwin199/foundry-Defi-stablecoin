@@ -155,7 +155,6 @@ contract DSCEngine is ReentrancyGuard {
         moreThanZero(amountToRedeem)
         isTokenAllowed(tokenCollateralAddress)
         moreThanZero(amountDSCToBurn)
-        nonReentrant
     {
         burnDSC(amountDSCToBurn);
         redeemCollateral(tokenCollateralAddress, amountToRedeem);
