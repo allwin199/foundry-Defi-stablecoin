@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.18;
 
-import {Test} from "forge-std/Test.sol";
+import {Test, console2, console} from "forge-std/Test.sol";
 import {DSCEngine} from "../../src/DSCEngine.sol";
 import {DecentralizedStableCoin} from "../../src/DecentralizedStableCoin.sol";
 import {ERC20Mock} from "@openzeppelin/contracts/mocks/ERC20Mock.sol";
@@ -14,6 +14,8 @@ contract Handler is Test {
 
     ERC20Mock weth;
     ERC20Mock wbtc;
+
+    address[] public usersWithCollateralDeposited;
 
     uint256 MAX_DEPOSIT_SIZE = type(uint96).max;
 
@@ -39,12 +41,42 @@ contract Handler is Test {
         dSCEngine.depositCollateral(address(collateral), amountCollateral);
 
         vm.stopPrank();
+
+        usersWithCollateralDeposited.push(msg.sender);
+    }
+
+    function mintDsc(uint256 amountDsc, uint256 addressSeed) public {
+        if (usersWithCollateralDeposited.length == 0) {
+            return;
+        }
+        address sender = usersWithCollateralDeposited[addressSeed % usersWithCollateralDeposited.length];
+        (uint256 totalDSCMinted, uint256 collateralValueInUsd) = dSCEngine.getAccountInformation(sender);
+
+        console2.log("maxDscToMint ", totalDSCMinted, collateralValueInUsd);
+
+        int256 maxDscToMint = int256(collateralValueInUsd / 2) - int256(totalDSCMinted);
+
+        if (maxDscToMint < 0) {
+            return;
+        }
+
+        amountDsc = bound(amountDsc, 0, uint256(maxDscToMint));
+
+        if (amountDsc == 0) {
+            return;
+        }
+
+        vm.startPrank(sender);
+
+        dSCEngine.mintDsc(amountDsc);
+        vm.stopPrank();
     }
 
     function redeemCollateral(uint256 collateralSeed, uint256 amountCollateral) public {
         ERC20Mock collateral = _getCollateralFromSeed(collateralSeed);
 
         uint256 maxCollateralToReddem = dSCEngine.getTotalCollateralValueOfUser(address(collateral), msg.sender);
+        console2.log("maxCollateralToReddem ", maxCollateralToReddem);
 
         amountCollateral = bound(amountCollateral, 0, maxCollateralToReddem);
 

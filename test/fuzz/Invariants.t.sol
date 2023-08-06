@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.18;
 
-import {Test} from "forge-std/Test.sol";
+import {Test, console2} from "forge-std/Test.sol";
 import {StdInvariant} from "forge-std/StdInvariant.sol";
 import {DeployDSC} from "../../script/DeployDSC.s.sol";
 import {DecentralizedStableCoin} from "../../src/DecentralizedStableCoin.sol";
@@ -39,6 +39,10 @@ contract OpenInvariantsTest is StdInvariant, Test {
 
         uint256 wethUsdValue = dSCEngine.getUsdValue(weth, totalWethDeposited);
         uint256 wbtcUsdValue = dSCEngine.getUsdValue(wbtc, totalBtcDeposited);
+
+        console2.log("weth value: ", wethUsdValue);
+        console2.log("wbtc value: ", wbtcUsdValue);
+        console2.log("total supply: ", totalSupply);
 
         assert(wethUsdValue + wbtcUsdValue >= totalSupply);
     }
