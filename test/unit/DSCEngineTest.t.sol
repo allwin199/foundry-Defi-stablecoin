@@ -284,4 +284,14 @@ contract DSCEngineTest is Test {
 
         vm.stopPrank();
     }
+
+    /*/////////////////////////////////////////////////////////////////////////////
+                                LIQUIDATION TESTS
+    /////////////////////////////////////////////////////////////////////////////*/
+    function test_Reverts_IfHealthFactorIsOk() public despositedCollateral mintedDSC {
+        vm.startPrank(msg.sender);
+        vm.expectRevert(DSCEngine.DSCEngine__HealthFactorOk.selector);
+        dSCEngine.liquidate(weth, USER, AMOUNT_DSC_To_Mint);
+        vm.stopPrank();
+    }
 }
